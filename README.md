@@ -97,12 +97,6 @@
 
 ---
 
-### Branch Rule
-
-> **Rule:** If `search_listings` returns an empty list (`[]`), store an error notice in session state (`"No matching listings found for your search criteria."`), display it to the user, and **stop execution immediately**. Do not call `suggest_outfit` or `create_fit_card`. Otherwise, select the top matching result (`results[0]`), store it in session state, and pass it to `suggest_outfit`.
-
----
-
 ## Planning Loop
 
 <!-- Your branch rule, stated as a rule — the condition AND both paths — plus
@@ -117,10 +111,16 @@
      function have to be real. -->
 
 **Branch rule:**
+ If `search_listings` returns an empty list (`[]`), store an error notice in session state (`"No matching listings found for your search criteria."`), display it to the user, and **stop execution immediately**. Do not call `suggest_outfit` or `create_fit_card`. Otherwise, select the top matching result (`results[0]`), store it in session state, and pass it to `suggest_outfit`.
+
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** 
+FitFindr extracts search criteria from user prompts using regular expressions:
+- **Price ceiling (`max_price`):** Scans for currency amounts following terms like `under`, `below`, `max`, or `$` (converted to `float`).
+- **Size (`size`):** Matches tokens following `size` / `in size`, or standard size identifiers (e.g. `XXS`, `M`, `W30 L30`).
+- **Description (`description`):** Remaining tokens are preserved to match against listing titles, style tags, and descriptions.<!-- regex, string splitting, or asking the model — say which -->
 
 **What moves through the session:** <!-- which fields, in what order -->
 
@@ -136,7 +136,19 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
+
+  Found:    Graphic Tee — 2003 Tour Bootleg Style — $24.0 on depop
+
+  Outfit:   Pair your new 2003 tour graphic tee with your **baggy dark wash jeans** and the **vintage black denim jacket**. 
+
+The monochromatic black-on-black base of the tee and denim jacket creates a cohesive, grungy aesthetic that is effortlessly elevated by the rich indigo of the baggy jeans. Meanwhile, the relaxed silhouette of the straight-leg denim perfectly mirrors the streetwear energy of the bootleg tee, while adding a subtle contrast in texture between the worn-in cotton and sturdy denim.
+
+  Fit card: Scored this ultimate 2003 Tour Bootleg Style graphic tee on depop for just $24.0, and I'm honestly obsessed. Threw it on with my favorite baggy dark wash jeans and a worn-in black denim jacket for that effortlessly grungy, monochromatic streetwear look. It’s giving total effortless vintage vibes.
+
+#thriftfinds #depop #streetwearaesthetic #vintagefashion
+
+0 model calls this session, 2 served from cache
 
 ```
 
@@ -144,17 +156,23 @@ $ python app.py ask '...'
 
 ```
 $ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
+[{'id': 'lst_006', 'title': 'Graphic Tee — 2003 Tour Bootleg Style', 'description': 'Vintage-style bootleg tee with faded graphic. Slightly boxy fit. 100% cotton, soft and worn-in.', 'category': 'tops', 'style_tags': ['graphic tee', 'vintage', 'grunge', 'streetwear', 'band tee'], 'size': 'L', 'condition': 'good', 'price': 24.0, 'colors': ['black'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_002', 'title': 'Y2K Baby Tee — Butterfly Print', 'description': 'Super cute early 2000s baby tee with butterfly graphic. Fitted crop length. Tag says medium but fits like a small.', 'category': 'tops', 'style_tags': ['y2k', 'vintage', 'graphic tee', 'cottagecore'], 'size': 'S/M', 'condition': 'excellent', 'price': 18.0, 'colors': ['white', 'pink', 'purple'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_033', 'title': 'Vintage Band Tee — Faded Grey', 'description': 'Faded grey band-style tee with distressed graphic. Crew neck. Fits boxy. Well-loved but no holes or major damage.', 'category': 'tops', 'style_tags': ['vintage', 'grunge', 'band tee', 'graphic tee', 'streetwear'], 'size': 'L', 'condition': 'fair', 'price': 19.0, 'colors': ['grey', 'charcoal'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_015', 'title': 'Vintage Graphic Hoodie — Faded Black', 'description': 'Faded black pullover hoodie with barely-visible vintage graphic on the chest. Cozy interior. Some pilling but adds to the worn-in look.', 'category': 'tops', 'style_tags': ['vintage', 'grunge', 'graphic', 'streetwear'], 'size': 'L', 'condition': 'fair', 'price': 26.0, 'colors': ['black', 'charcoal'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_017', 'title': 'Mesh Long-Sleeve Top — Black', 'description': 'Sheer black mesh long-sleeve. Great for layering under a graphic tee or over a bralette. Stretchy material, fits true to size.', 'category': 'tops', 'style_tags': ['y2k', 'grunge', 'goth', 'layering'], 'size': 'S/M', 'condition': 'excellent', 'price': 15.0, 'colors': ['black'], 'brand': None, 'platform': 'depop'}, {'id': 'lst_012', 'title': 'Oversized Crewneck Sweatshirt — Vintage Navy', 'description': 'Perfectly faded navy crewneck. Genuinely vintage — not manufactured distressed. Ribbed cuffs and hem. No graphics, clean.', 'category': 'tops', 'style_tags': ['vintage', 'basics', 'oversized', 'classic'], 'size': 'XL (fits oversized)', 'condition': 'good', 'price': 20.0, 'colors': ['navy'], 'brand': None, 'platform': 'thredUp'}, {'id': 'lst_011', 'title': 'Low-Rise Cargo Pants — Khaki', 'description': 'Y2K era low-rise cargo pants. Lots of pockets. Khaki color, slightly distressed at the hems. Great for layering with a long tee.', 'category': 'bottoms', 'style_tags': ['y2k', 'cargo', '2000s', 'streetwear'], 'size': 'W29', 'condition': 'fair', 'price': 27.0, 'colors': ['khaki', 'tan'], 'brand': None, 'platform': 'poshmark'}]
 
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+Hey bestie! To style these vintage medium wash Levi's 501s, I'd pair them with your **white ribbed tank top** and your **vintage black denim jacket**. 
+
+The fitted, minimal white ribbed tank creates a clean, classic contrast against the structured, straight-leg silhouette of the mid-wash denim, while layering the black denim jacket on top adds a cool, vintage double-denim edge. The crisp white and neutral black hues keep the color palette effortlessly cohesive and timelessly streetwear-ready.
 
 ```
 
 ```
-$ python -c "from tools import create_fit_card; ..."
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+Scored these dream Vintage Levi's 501 Jeans on depop for just $38.0 and I’m never taking them off. The medium wash is *so* good for that effortless, lived-in feel. Just paired them with my favorite white sneakers for the ultimate off-duty look. 
 
+#thriftfinds #vintagestyle #depopfinds
 ```
 
 ---
