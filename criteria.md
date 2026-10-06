@@ -24,10 +24,7 @@ data earns credit; *"80% seemed reasonable"* does not.
 Given a query that matches at least one listing, the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
-**Why this target:**
-<!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
-     "my search is a plain keyword match and some phrasings will miss" is a
-     real answer. -->
+**Why this target:** Search depends on text query interpretation, and downstream tools make LLM calls. A 4/5 target accounts for occasional API timeouts, rate pacing pauses, or ambiguous natural language phrasing, while ensuring the end-to-end pipeline is fundamentally reliable.
 
 ---
 
@@ -36,66 +33,28 @@ tool calls and returns a fit card — in at least 4 of 5 tries.
 Given a query that matches no listings, the agent stops before calling
 `suggest_outfit` and returns a message naming what to change — 5 of 5 tries.
 
-**Why this target:**
-<!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
-     about this path? -->
+**Why this target:** Branching on an empty search result is controlled by deterministic Python code (`if not results:`), not an LLM decision. There is no randomness here: if the listing list is empty, execution must halt immediately every single time.
 
 ---
 
-## 3. Something about state
+### Criterion 3 (State / Data Handoff)
+In 5 of 5 successful search runs, the item ID (`new_item['id']`) passed to `suggest_outfit` exactly matches the ID of the top listing produced by `search_listings`, with zero intermediate prompts to the user.
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know that the item your search found is the same item the
-     next tool received? Name something countable or observable.
-
-     This is the criterion people find hardest, because state failure doesn't
-     look like state failure — it looks like a tool problem. Something that
-     compares session["selected_item"] against what actually reached
-     suggest_outfit is the shape you're after. -->
-
-
-
-**Why this target:**
-
-
+**Why this target:** Session state management is pure code logic. Once `search_listings` identifies the best candidate, passing its dictionary reference or ID into the next function call should never fail or hallucinate an ID.
 
 ---
 
-## 4. Something about the fit card
+### Criterion 4 (Fit Card Content & Formatting)
+Across 5 generated fit cards from valid listings, at least 4 of 5 fit cards explicitly include the item's title, its listed price, and at least two relevant aesthetic hashtags (e.g., `#vintage`, `#streetwear`).
 
-<!-- YOU WRITE THIS ONE.
-
-     The fit card calls a model, so the same input can produce different words
-     each time. That's not a bug — it's the nature of the tool. So what would
-     make it acceptable?
-
-     Think about what you'd actually be unhappy to see. A caption that never
-     mentions the price? Two different items producing the same opening
-     sentence? A card longer than a caption anyone would post? Any of those can
-     be turned into a number. -->
-
-
-
-**Why this target:**
-
-
+**Why this target:** `create_fit_card` uses an LLM, meaning the exact wording varies run to run. Setting a 4/5 threshold accommodates slight stochastic variance in formatting while enforcing that critical factual anchors (name, price) and styling elements (hashtags) are consistently generated.
 
 ---
 
-## 5. Your choice
+### Criterion 5 (Price Constraint Fidelity)
+Given 5 distinct search queries containing explicit price ceilings (e.g., `"under $30"`, `"under $45"`), 5 of 5 runs return exclusively listings whose `price` attribute is less than or equal to the specified `max_price`.
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. Speed, the empty
-     wardrobe path, what happens when the model can't be reached, whether the
-     search respects a price ceiling — anything, as long as it names a number
-     or an observable outcome. -->
-
-
-
-**Why this target:**
-
+**Why this target:** A thrift agent that returns out-of-budget items fails its primary utility. Price filtering in `search_listings` is an exact numeric comparison (`listing['price'] <= max_price`), so zero leakage or over-budget items should occur.
 
 
 ---
