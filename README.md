@@ -47,15 +47,59 @@
 
 ## Tool Inventory
 
-<!-- Four lines per tool. This is worth 2 points and it's the single most
-     common place students lose them.
+### 1. `search_listings`
+* **What it does:** Searches the local listings catalog (`data/listings.json`) against description keywords, size, and an optional maximum price ceiling, returning matching items.
+* **Inputs:**
+  * `description` (str): Search keywords, style aesthetics, or item names (e.g., `"vintage graphic tee"`).
+  * `size` (str | None): Target clothing or shoe size (e.g., `"M"`, `"W30 L30"`, `"8"`). `None` if not specified.
+  * `max_price` (float | None): Maximum price in USD. `None` if no price limit is given.
+* **Returns:** A list of listing dictionaries (`list[dict]`), where each dictionary contains:
+  * `id` (str)
+  * `title` (str)
+  * `description` (str)
+  * `category` (str)
+  * `style_tags` (list[str])
+  * `size` (str)
+  * `condition` (str)
+  * `price` (float)
+  * `colors` (list[str])
+  * `brand` (str | None)
+  * `platform` (str)
+* **Empty case:** Returns an empty list `[]` if no listings match the criteria.
 
-     "Returns a list" earns NOTHING. The description has to say what is IN
-     the list.
+---
 
-     The empty case isn't optional either — it's the thing your loop branches
-     on, and if you don't decide it here you'll discover it as a crash in
-     Milestone 5. -->
+### 2. `suggest_outfit`
+* **What it does:** Uses the language model to pair a selected thrift listing with pieces from the user's existing wardrobe, providing a cohesive outfit recommendation with styling rationale.
+* **Inputs:**
+  * `new_item` (dict): The listing dictionary selected from `search_listings` (containing `id`, `title`, `category`, `style_tags`, `colors`, etc.).
+  * `wardrobe` (list[dict]): A list of existing wardrobe item dictionaries, each containing `id` (str), `name` (str), `category` (str), `colors` (list[str]), `style_tags` (list[str]), and `notes` (str).
+* **Returns:** A dictionary (`dict`) containing:
+  * `selected_item_id` (str): ID of the thrifted piece.
+  * `matching_wardrobe_ids` (list[str]): List of IDs of the paired wardrobe items.
+  * `outfit_name` (str): Short creative name for the fit (e.g., `"Casual 90s Grunge Layer"`).
+  * `styling_advice` (str): 2–3 sentences explaining why the silhouettes, color palette, and styles work together.
+* **Empty case:** If the wardrobe is empty or no compatible items are found, returns a dictionary with:
+  * `selected_item_id`: `new_item["id"]`
+  * `matching_wardrobe_ids`: `[]`
+  * `outfit_name`: `"Standalone Statement"`
+  * `styling_advice`: `"Wear as a standalone hero piece. No matching wardrobe items found."`
+
+---
+
+### 3. `create_fit_card`
+* **What it does:** Uses the language model to generate a short, punchy social-media-ready caption and breakdown card for the recommended outfit.
+* **Inputs:**
+  * `outfit` (dict): The output dictionary from `suggest_outfit` (containing `outfit_name`, `styling_advice`, and `matching_wardrobe_ids`).
+  * `new_item` (dict): The thrift listing dictionary (containing `title`, `price`, `platform`, `brand`, etc.).
+* **Returns:** A formatted string (`str`) containing a ready-to-post caption with an outfit title, price and platform credit, styling note, and 3–5 aesthetic hashtags.
+* **Empty case:** Returns an empty string `""` if either `outfit` or `new_item` is missing or invalid.
+
+---
+
+### Branch Rule
+
+> **Rule:** If `search_listings` returns an empty list (`[]`), store an error notice in session state (`"No matching listings found for your search criteria."`), display it to the user, and **stop execution immediately**. Do not call `suggest_outfit` or `create_fit_card`. Otherwise, select the top matching result (`results[0]`), store it in session state, and pass it to `suggest_outfit`.
 
 ### `search_listings`
 
