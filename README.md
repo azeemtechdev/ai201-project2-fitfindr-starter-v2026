@@ -37,78 +37,56 @@
 
 <!-- ═══════════════════════ UNIT 3 — THE BUILD ═══════════════════════ -->
 
-## What This Does
+## 1. What This Does
 
-<!-- Three or four sentences: what a user asks for, and what they get back. -->
+Instead of manually browsing multiple apps and guessing how a piece coordinates with your wardrobe, a user provides a natural language request (such as `"vintage graphic tee under $30, size M"`). 
 
-
+FitFindr:
+1. Parses the query into structured search criteria (description keywords, clothing size, price ceiling).
+2. Searches a local thrift catalog (`data/listings.json`) using keyword relevance and constraint filtering.
+3. Evaluates the found piece against the user's existing wardrobe catalog (`data/wardrobe_schema.json`) using Gemini to generate a cohesive styling suggestion.
+4. Generates an authentic social media "fit card" caption with item pricing, platform attribution, and aesthetic hashtags.
+5. Branches and halts gracefully when no items match the user's constraints, providing actionable tips on what parameters to loosen instead of calling downstream tools with empty data.
 
 ---
 
-## Tool Inventory
+## 2. Tool Inventory
 
-### 1. `search_listings`
-* **What it does:** Searches the local listings catalog (`data/listings.json`) against description keywords, size, and an optional maximum price ceiling, returning matching items.
+### `search_listings`
+* **What it does:** Searches the local thrift listing catalog for items matching description keywords, an optional size filter, and an optional price ceiling.
 * **Inputs:**
-  * `description` (str): Search keywords, style aesthetics, or item names (e.g., `"vintage graphic tee"`).
-  * `size` (str | None): Target clothing or shoe size (e.g., `"M"`, `"W30 L30"`, `"8"`). `None` if not specified.
-  * `max_price` (float | None): Maximum price in USD. `None` if no price limit is given.
-* **Returns:** A list of listing dictionaries (`list[dict]`), where each dictionary contains:
-  * `id` (str)
-  * `title` (str)
-  * `description` (str)
-  * `category` (str)
-  * `style_tags` (list[str])
-  * `size` (str)
-  * `condition` (str)
-  * `price` (float)
-  * `colors` (list[str])
-  * `brand` (str | None)
-  * `platform` (str)
-* **When it has nothing:** Returns an empty list `[]` if no listings match the criteria.
+  * `description` (`str`): Target item keywords or aesthetic tags (e.g., `"vintage graphic tee"`).
+  * `size` (`str | None`): Target clothing or shoe size (e.g., `"M"`, `"W30 L30"`). `None` to skip size filtering.
+  * `max_price` (`float | None`): Inclusive price ceiling in USD. `None` to skip price filtering.
+* **Returns:** `list[dict]` — A list of up to `config.SEARCH_RESULT_LIMIT` matching listing dictionaries, ranked by relevance score and price. Each item contains `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`.
+* **When it has nothing:** Returns an empty list `[]` when no items match (never `None` or an unhandled exception).
 
----
-
-### 2. `suggest_outfit`
-* **What it does:** Uses the language model to pair a selected thrift listing with pieces from the user's existing wardrobe, providing a cohesive outfit recommendation with styling rationale.
+### `suggest_outfit`
+* **What it does:** Calls the language model to pair the selected thrift piece with 1–2 compatible items from the user's wardrobe, explaining the styling rationale.
 * **Inputs:**
-  * `new_item` (dict): The listing dictionary selected from `search_listings` (containing `id`, `title`, `category`, `style_tags`, `colors`, etc.).
-  * `wardrobe` (list[dict]): A list of existing wardrobe item dictionaries, each containing `id` (str), `name` (str), `category` (str), `colors` (list[str]), `style_tags` (list[str]), and `notes` (str).
-* **Returns:** A dictionary (`dict`) containing:
-  * `selected_item_id` (str): ID of the thrifted piece.
-  * `matching_wardrobe_ids` (list[str]): List of IDs of the paired wardrobe items.
-  * `outfit_name` (str): Short creative name for the fit (e.g., `"Casual 90s Grunge Layer"`).
-  * `styling_advice` (str): 2–3 sentences explaining why the silhouettes, color palette, and styles work together.
-* **When it has nothing:** If the wardrobe is empty or no compatible items are found, returns a dictionary with:
-  * `selected_item_id`: `new_item["id"]`
-  * `matching_wardrobe_ids`: `[]`
-  * `outfit_name`: `"Standalone Statement"`
-  * `styling_advice`: `"Wear as a standalone hero piece. No matching wardrobe items found."`
+  * `new_item` (`dict`): The selected thrift listing dictionary.
+  * `wardrobe` (`dict`): A wardrobe dictionary containing an `'items'` key with a list of wardrobe item dictionaries.
+* **Returns:** `str` — A 2 to 3 sentence recommendation naming specific wardrobe pieces and explaining why the silhouettes, colors, and aesthetics coordinate.
+* **When it has nothing:** When `wardrobe['items']` is empty, returns general styling advice for versatile staples and colors to pair with the item, rather than failing or returning `""`.
 
----
-
-### 3. `create_fit_card`
-* **What it does:** Uses the language model to generate a short, punchy social-media-ready caption and breakdown card for the recommended outfit.
+### `create_fit_card`
+* **What it does:** Calls the language model to write a short, authentic social caption about the thrift find.
 * **Inputs:**
-  * `outfit` (dict): The output dictionary from `suggest_outfit` (containing `outfit_name`, `styling_advice`, and `matching_wardrobe_ids`).
-  * `new_item` (dict): The thrift listing dictionary (containing `title`, `price`, `platform`, `brand`, etc.).
-* **Returns:** A formatted string (`str`) containing a ready-to-post caption with an outfit title, price and platform credit, styling note, and 3–5 aesthetic hashtags.
-* **When it has nothing:** Returns an empty string `""` if either `outfit` or `new_item` is missing or invalid.
+  * `outfit` (`str`): The outfit styling text generated by `suggest_outfit`.
+  * `new_item` (`dict`): The selected listing dictionary.
+* **Returns:** `str` — A 2 to 4 sentence post mentioning the item name, price, and platform naturally, accompanied by 2–4 relevant hashtags.
+* **When it has nothing:** Returns `"No outfit details available to generate a fit card."` if `outfit` is empty or whitespace.
 
 ---
 
-## Planning Loop
+## 3. Planning Loop
 
-<!-- Your branch rule, stated as a rule — the condition AND both paths — plus
-     the file and function that holds it.
+* **Location:** `agent.py::run_agent`
+* **Branch Rule:** If `search_listings` returns an empty list (`[]`), the loop populates `session["error"]` with an actionable message detailing what to adjust (raising the price ceiling, removing the size restriction, or broadening keywords) and halts execution immediately. It does not call `suggest_outfit` or `create_fit_card`.
+* **Query Parsing:** Handled via regular expressions in `agent.py::parse_query`. It extracts price thresholds following keywords like `under` or `$`, isolates size tokens (e.g., `size M`, `W30 L30`), and preserves remaining tokens as the item description.
+* **Session State:** Every tool reads from and writes to a central `session` dictionary created by `new_session()`. Downstream tools read their inputs directly from `session["selected_item"]` and `session["outfit_suggestion"]`, ensuring state handoff is observable and verifiable.
 
-     Like this:
-       "If search_listings returns an empty list, put a message in the session
-        and stop. Otherwise take the first result and go to suggest_outfit."
-        — agent.py::run_agent
-
-     The grader checks your code against what you claim here, so the file and
-     function have to be real. -->
+---
 
 **Branch rule:**
  If `search_listings` returns an empty list (`[]`), store an error notice in session state (`"No matching listings found for your search criteria."`), display it to the user, and **stop execution immediately**. Do not call `suggest_outfit` or `create_fit_card`. Otherwise, select the top matching result (`results[0]`), store it in session state, and pass it to `suggest_outfit`.
@@ -188,15 +166,15 @@ Scored these dream Vintage Levi's 501 Jeans on depop for just $38.0 and I’m ne
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked the model to implement size filtering logic for `search_listings` that could handle compound sizes like matching `"size M"` to `"S/M"`.
+- *What came back:* The model provided a simple substring check: `if size.lower() in item['size'].lower(): return True`.
+- *What I changed:* I rejected the substring approach because it produces false positives (e.g., query `"s"` matches `"us 9"`, query `"l"` matches `"xl"`). I replaced it with a custom helper (`_matches_size`) that tokenizes the size string by delimiters (`/`, spaces, parentheses) and checks for exact token matches and normalized waist sizes.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked the model to write the early-exit branch logic in `agent.py::run_agent` when `search_listings` returns an empty list.
+- *What came back:* It returned a generic static error string: `session["error"] = "No listings matched your search criteria."` and returned early.
+- *What I changed:* Because Milestone 5 and Criterion 2 require the error to explicitly guide the user on what to change, I replaced the static string with `_format_no_match_message()`. This inspects `session["parsed"]` and dynamically tells the user whether to raise their specific price ceiling, drop their selected size filter, or broaden their keywords.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
@@ -344,7 +322,7 @@ full. -->
        [ ] Each criterion has a reason underneath it
        [ ] All five unit 3 sections above have real content
        [ ] Tool Inventory: all three tools, inputs WITH TYPES, a specific
-           return value, and the empty case
+           return value, and the When it has nothing
        [ ] Planning Loop names the branch rule and agent.py::run_agent
        [ ] Sample Run: one full query plus the three per-tool tests, as text
        [ ] At least four new commits
