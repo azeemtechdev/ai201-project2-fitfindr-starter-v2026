@@ -21,7 +21,6 @@ import argparse
 import sys
 
 import config
-
 # Every query here except the last one has something real to find in
 # data/listings.json. If you add your own, check it against the data first — a
 # query that finds nothing because the item doesn't exist looks exactly like a
