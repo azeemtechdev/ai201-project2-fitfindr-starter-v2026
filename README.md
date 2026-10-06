@@ -65,7 +65,7 @@
   * `colors` (list[str])
   * `brand` (str | None)
   * `platform` (str)
-* **Empty case:** Returns an empty list `[]` if no listings match the criteria.
+* **When it has nothing:** Returns an empty list `[]` if no listings match the criteria.
 
 ---
 
@@ -79,7 +79,7 @@
   * `matching_wardrobe_ids` (list[str]): List of IDs of the paired wardrobe items.
   * `outfit_name` (str): Short creative name for the fit (e.g., `"Casual 90s Grunge Layer"`).
   * `styling_advice` (str): 2–3 sentences explaining why the silhouettes, color palette, and styles work together.
-* **Empty case:** If the wardrobe is empty or no compatible items are found, returns a dictionary with:
+* **When it has nothing:** If the wardrobe is empty or no compatible items are found, returns a dictionary with:
   * `selected_item_id`: `new_item["id"]`
   * `matching_wardrobe_ids`: `[]`
   * `outfit_name`: `"Standalone Statement"`
@@ -93,34 +93,13 @@
   * `outfit` (dict): The output dictionary from `suggest_outfit` (containing `outfit_name`, `styling_advice`, and `matching_wardrobe_ids`).
   * `new_item` (dict): The thrift listing dictionary (containing `title`, `price`, `platform`, `brand`, etc.).
 * **Returns:** A formatted string (`str`) containing a ready-to-post caption with an outfit title, price and platform credit, styling note, and 3–5 aesthetic hashtags.
-* **Empty case:** Returns an empty string `""` if either `outfit` or `new_item` is missing or invalid.
+* **When it has nothing:** Returns an empty string `""` if either `outfit` or `new_item` is missing or invalid.
 
 ---
 
 ### Branch Rule
 
 > **Rule:** If `search_listings` returns an empty list (`[]`), store an error notice in session state (`"No matching listings found for your search criteria."`), display it to the user, and **stop execution immediately**. Do not call `suggest_outfit` or `create_fit_card`. Otherwise, select the top matching result (`results[0]`), store it in session state, and pass it to `suggest_outfit`.
-
-### `search_listings`
-
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
-
-### `suggest_outfit`
-
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
-
-### `create_fit_card`
-
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
 
 ---
 
