@@ -7,10 +7,11 @@ which tool to run next based on what the last one returned.
 
 import re
 import config
-import trace
+from trace import step, start_trace, check_iterations
 from tools import suggest_outfit, create_fit_card
 from mcp_client import call_tool
 from generate import ModelUnavailable
+
 
 # ── helper: query parser ──────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ def parse_query(query: str) -> dict:
         size = size_match.group(1).strip()
         text = text[:size_match.start()] + " " + text[size_match.end():]
     else:
-        # Check standalone size keywords (e.g., "W30 L30", "XXS", "XS", "XL", "XXL")
+        # Check standalone size keywords (e.g., "XXS", "XS", "S/M", "XL", "W30 L30")
         standalone_size = re.search(
             r"\b(xxs|xs|s/m|m/l|xxl|xl|w\d+\s*l\d+)\b",
             text,
@@ -55,7 +56,6 @@ def parse_query(query: str) -> dict:
             size = standalone_size.group(1).strip()
             text = text[:standalone_size.start()] + " " + text[standalone_size.end():]
 
-    # Clean description by collapsing whitespace
     clean_desc = " ".join(text.split())
 
     return {
@@ -112,18 +112,19 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     Run the loop once and return the finished session.
     """
+    start_trace()
     session = new_session(query, wardrobe)
     iteration = 0
 
     try:
-        # Step 1: Increment iteration and check bounds
+        # Step 1: Check iteration bounds
         iteration += 1
-        trace.check_iterations(iteration)
+        check_iterations(iteration)
 
-        # Step 2: Parse query into session state
+        # Step 2: Parse query
         session["parsed"] = parse_query(session["query"])
 
-        # Step 3: Run search_listings over MCP
+        # Step 3: Call search_listings over MCP
         parsed_params = session["parsed"]
         search_args = {
             "description": parsed_params.get("description", ""),
@@ -135,33 +136,68 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
         session["search_results"] = call_tool("search_listings", search_args)
 
+        # Trace the MCP call
+        step(
+            "search_listings (via MCP)",
+            inputs=search_args,
+            returned=session["search_results"],
+        )
 
-        # Step 4: THE BRANCH — Stop if search returned nothing
+        # Step 4: THE BRANCH — Stop early if nothing matches
         if not session["search_results"]:
+            step(
+                "branch_check",
+                inputs={"results_count": 0},
+                note="empty results, stopping execution before suggest_outfit",
+            )
             session["error"] = _format_no_match_message(session["parsed"])
             return session
 
         # Step 5: Select item into session state
         session["selected_item"] = session["search_results"][0]
 
-        # Step 6: Generate outfit suggestion using session state
+        # Step 6: Generate outfit suggestion
         iteration += 1
-        trace.check_iterations(iteration)
+        check_iterations(iteration)
+
         session["outfit_suggestion"] = suggest_outfit(
             new_item=session["selected_item"],
             wardrobe=session["wardrobe"],
         )
 
-        # Step 7: Generate fit card using session state
+        wardrobe_items = session["wardrobe"].get("items", []) if isinstance(session["wardrobe"], dict) else []
+        step(
+            "suggest_outfit",
+            inputs={
+                "item": session["selected_item"].get("title"),
+                "wardrobe_count": len(wardrobe_items),
+            },
+            returned=session["outfit_suggestion"],
+        )
+
+        # Step 7: Generate fit card
         iteration += 1
-        trace.check_iterations(iteration)
+        check_iterations(iteration)
+
         session["fit_card"] = create_fit_card(
             outfit=session["outfit_suggestion"],
             new_item=session["selected_item"],
         )
 
+        step(
+            "create_fit_card",
+            inputs={
+                "item": session["selected_item"].get("title"),
+                "price": session["selected_item"].get("price"),
+            },
+            returned=session["fit_card"],
+        )
+
     except ModelUnavailable as e:
-        session["error"] = f"Model service temporarily unavailable: {e}"
+        session["error"] = (
+            f"The AI styling service could not be reached ({e}). "
+            "Please check your internet connection and verify that your GEMINI_API_KEY in .env is valid, then try again."
+        )
         return session
 
     return session
