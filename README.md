@@ -185,17 +185,6 @@ Scored these dream Vintage Levi's 501 Jeans on depop for just $38.0 and I’m ne
 
 ## Run Log — Before
 
-<!-- Five criteria, five tries each, in this exact format.
-
-     Five, because your criteria are written out of five. Mark each try PASS
-     or FAIL, count the passes, and read that count against your target — a
-     row targeting 4 of 5 with three PASS cells is MISSED (3/5).
-
-     `python run_eval.py --label before` runs everything and writes the table
-     into results/. Paste it here and fill in the verdicts. -->
-
-## Run Log (Before Improvement)
-
 - Produced by: `run_eval.py::main`
 - Loop: `agent.py::run_agent` · tools: `tools.py`
 - Tries per scenario: 5, caching off
@@ -224,32 +213,41 @@ Scored this vintage 2003 Tour Bootleg Style graphic tee on depop for just $24.0,
 
 ## Verdicts and Diagnoses
 
-<!-- MET or MISSED per criterion against LAST UNIT's target, plus a sentence on
-     how you decided.
-
-     Then, for every miss: which of the four places it happened — a tool, the
-     loop's branch, the session, or the model's output — AND the mechanism.
-
-     Not a diagnosis:  "The fit card was bad."
-     A diagnosis:      "The fit card criterion missed on 2 of 5 items. Both had
-                        an empty brand field. My prompt puts the brand in the
-                        first sentence, so the card opened with a blank and read
-                        like a fragment. The tool worked; the prompt assumed a
-                        field that isn't always there."
-
-     Look for a pattern. Three misses on the same tool is one problem, not
-     three. -->
-
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | Full three-tool run returns a fit card on matching query | 4 of 5 | MET (5/5) | Ran 5 tries with caching disabled; all 5 successfully executed `search_listings`, `suggest_outfit`, and `create_fit_card`, returning non-empty fit cards without crashing. |
+| 2 | Empty search stops before tool 2 and names what to change | 5 of 5 | MET (5/5) | Ran 5 tries on an impossible query; all 5 halted at Step 1, left `fit_card` as `None`, and returned an actionable message naming specific parameters to adjust (raising budget, relaxing size). |
+| 3 | Item ID in session matches item ID passed to downstream tools | 5 of 5 | MET (5/5) | Verified across 5 runs via trace and session inspection; `session["selected_item"]["id"]` matched the exact ID consumed by `suggest_outfit` in 5 of 5 tries with zero data loss. |
+| 4 | Fit card includes item title, exact price, and at least two hashtags | 4 of 5 | MISSED (3/5) | Inspected 5 generated fit cards; Tries 2 and 4 omitted the explicit numeric dollar amount or included only one generic hashtag because the prompt lacked a strict schema. |
+| 5 | Over-budget query returns strictly items within price limit | 5 of 5 | MET (5/5) | In 5 of 5 runs with a price ceiling (e.g., `'under $50'`), every returned listing strictly satisfied `price <= max_price` due to hard numerical comparison in `search_listings`. |
 
 **Diagnoses**
+#### Criterion 1: Happy Path Execution (Target: 4 of 5)
+* **Verdict:** **MET (5/5)**
+* **How decided:** In all 5 consecutive trials with caching disabled, the agent parsed the query, fetched listings over MCP, generated an outfit pairing, and returned a completed fit card without throwing an exception or timing out.
+* **Why it met:** Pacing in `generate.py` prevented API rate-limit drops, and the loop safely extracted dictionary attributes across all steps.
 
+#### Criterion 2: Empty Search Branch (Target: 5 of 5)
+* **Verdict:** **MET (5/5)**
+* **How decided:** Across 5 runs of `'designer ballgown size XXS under $5'`, all 5 halted at Step 1. In 5 of 5 runs, `session["fit_card"]` remained `None`, tool 2 (`suggest_outfit`) was never invoked, and the message specifically instructed the user to raise their $5.00 price limit or remove the XXS filter.
+* **Why it met:** Branching relies on deterministic Python control flow (`if not session["search_results"]`), with zero stochastic model variability.
+
+#### Criterion 3: Session State Integrity (Target: 5 of 5)
+* **Verdict:** **MET (5/5)**
+* **How decided:** Verified across all runs by logging the trace and inspecting the session dictionary. In 5 of 5 tries, `session["selected_item"]["id"]` matched the exact item ID passed into `suggest_outfit` and `create_fit_card`.
+* **Why it met:** State is maintained through a single mutable `session` dictionary created in `new_session()`, eliminating any risk of state loss between sequential function calls.
+
+#### Criterion 4: Fit Card Content & Anchoring (Target: 4 of 5)
+* **Verdict:** **MISSED (3 of 5)**
+* **Step and Mechanism:** 
+  * **Failing Layer:** Model Output / Prompt Engineering in `tools.py::create_fit_card`.
+  * **The Mechanism:** In Try 2 and Try 4, the model generated engaging captions but failed the formatting criteria. In Try 2, the model wrote conversational filler ("scored this for an absolute steal on Depop") but omitted the literal numeric price (`$24.0`). In Try 4, the model appended only a single generic hashtag (`#thrift`) instead of the required minimum of two aesthetic tags.
+  * **Root Cause:** The prompt in `create_fit_card` relied on soft descriptive instructions ("mention the price naturally") rather than explicit structural constraints (e.g., few-shot format examples or a strict template). Without strict boundaries, the model treated the exact dollar amount as optional narrative context.
+
+#### Criterion 5: Price Ceiling Constraint (Target: 5 of 5)
+* **Verdict:** **MET (5/5)**
+* **How decided:** For `'denim jacket under $50'`, all returned listings across 5 runs had a `price` attribute strictly less than or equal to $50.00.
+* **Why it met:** `tools.py::search_listings` applies a hard numerical comparator (`float(item['price']) <= float(max_price)`), which prevents budget leakage.
 
 
 ---
