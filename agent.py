@@ -8,9 +8,9 @@ which tool to run next based on what the last one returned.
 import re
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import suggest_outfit, create_fit_card
+from mcp_client import call_tool
 from generate import ModelUnavailable
-
 
 # ── helper: query parser ──────────────────────────────────────────────────────
 
@@ -123,13 +123,18 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         # Step 2: Parse query into session state
         session["parsed"] = parse_query(session["query"])
 
-        # Step 3: Run search_listings using parsed parameters from session
+        # Step 3: Run search_listings over MCP
         parsed_params = session["parsed"]
-        session["search_results"] = search_listings(
-            description=parsed_params.get("description", ""),
-            size=parsed_params.get("size"),
-            max_price=parsed_params.get("max_price"),
-        )
+        search_args = {
+            "description": parsed_params.get("description", ""),
+        }
+        if parsed_params.get("size") is not None:
+            search_args["size"] = parsed_params["size"]
+        if parsed_params.get("max_price") is not None:
+            search_args["max_price"] = parsed_params["max_price"]
+
+        session["search_results"] = call_tool("search_listings", search_args)
+
 
         # Step 4: THE BRANCH — Stop if search returned nothing
         if not session["search_results"]:
