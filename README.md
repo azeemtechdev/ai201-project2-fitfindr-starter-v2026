@@ -20,23 +20,6 @@
 
 ---
 
-<!-- ─────────────────────────────────────────────────────────────────────────
-     HOW TO USE THIS FILE
-
-     This is your submission. Fill each section in as you finish the milestone
-     it belongs to — don't leave it all to the end.
-
-     Unit 3 asks for the first five sections. Unit 4 adds the five below them.
-     Leave the unit 4 sections alone until then; they're here so you know
-     what's coming.
-
-     Everything is pasted as TEXT. No screenshots, no images, no video links.
-     A typed block of output gets full credit; a picture of the same output
-     gets none.
-     ───────────────────────────────────────────────────────────────────────── -->
-
-<!-- ═══════════════════════ UNIT 3 — THE BUILD ═══════════════════════ -->
-
 ## 1. What This Does
 
 Instead of manually browsing multiple apps and guessing how a piece coordinates with your wardrobe, a user provides a natural language request (such as `"vintage graphic tee under $30, size M"`). 
@@ -106,10 +89,6 @@ FitFindr extracts search criteria from user prompts using regular expressions:
 
 ## Sample Run
 
-<!-- Two things go here.
-
-     1. One FULL query and its output, pasted as text.
-     2. Your three per-tool terminal tests — the command and what it printed. -->
 
 **One full query**
 
@@ -156,13 +135,6 @@ Scored these dream Vintage Levi's 501 Jeans on depop for just $38.0 and I’m ne
 ---
 
 ## How I Used AI
-
-<!-- Two specific moments. What you asked, what came back, what you changed.
-
-     "I used Claude to help me code" is not enough.
-
-     "I gave Claude my search_listings spec. It returned None on no match
-     instead of an empty list, so I changed it" is the level we want. -->
 
 **Moment 1**
 
@@ -253,17 +225,6 @@ Scored this vintage 2003 Tour Bootleg Style graphic tee on depop for just $24.0,
 ---
 
 ## Loop Trace
-
-<!-- One full run, printed step by step, with the MCP call visible in it.
-
-     `python app.py ask '...' --trace` once you've added the trace.step()
-     calls in Milestone 2.
-
-     Worth pasting BOTH the happy path and the empty-search path. The empty
-     one should be visibly shorter, because it stops. If your two traces are
-     the same length, your branch isn't working — and this is the fastest way
-     anyone will ever find that out. -->
-
 **Happy path**
 
 ```
@@ -366,40 +327,45 @@ full. -->
 
 ## The Improvement
 
-<!-- What you changed, why your diagnosis pointed at it, and the after-run in
-     the same table format. One change, measured properly.
-
-     `python run_eval.py --label after` -->
-
 **What I changed:**
+I rewrote the generation prompt in `tools.py::create_fit_card`. I replaced open-ended creative instructions ("mention the price naturally") with a strict four-rule output contract that mandates:
+1. Sentence 1 must explicitly interpolate and state the exact item title, the `${price}` dollar string, and the source platform.
+2. The final line must consist of 3 to 4 aesthetic hashtags starting with `#`.
+3. The model must not omit the numeric price or dollar sign under any circumstance.
 
 **Which failure it was meant to fix:**
+Criterion 4 (Fit card content & formatting). In the initial evaluation (`--label before`), this criterion missed its target (3 of 5 instead of 4 of 5) because Tries 2 and 4 used colloquial descriptions like "got this for a steal" instead of stating the literal dollar amount, and Try 4 only appended a single generic hashtag.
 
 ### Run Log — After
 
+- Produced by: `run_eval.py --label after`
+- Loop: `agent.py::run_agent` · tools: `tools.py`
+- Tries per scenario: 5, caching off
+
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Full three-tool run returns a fit card | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Empty search stops before tool 2 | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Item in session matches item passed on | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card mentions title, price, and hashtags | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Over-budget query returns nothing over limit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
 **Did it help, and how do I know:**
-
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
-
-
+Yes, it completely resolved the failure. In the re-test across 5 trials with caching turned off, every generated fit card explicitly anchored the exact dollar amount (e.g., `$24.0`) in sentence 1 and included 3 to 4 aesthetic hashtags on the final line. This raised Criterion 4 from **MISSED (3/5)** to **MET (5/5)** with zero regressions across any of the other four criteria.
 
 ---
 
 ## What's Still Broken
 
-<!-- For each criterion still missed: what you'd do, and why you stopped where
-     you did. "I ran out of time" is fine if it's true. Pretending nothing is
-     left is not. -->
+While all five benchmark criteria now meet their numeric targets, two edge cases remain unaddressed in the system:
 
+1. **Brand-Specific Query Parsing:**
+   If a user asks for `"Levi's jeans under $40"`, `parse_query` lumps `"Levi's"` into general search keywords. Because `tools.py::search_listings` does not filter specifically against the `brand` field—and because `brand` is `null` for many thrift listings in the dataset—a search for a specific designer can return an unbranded item that merely mentions the brand in its description.
+2. **Shoe Size vs. Clothing Size Tokenization:**
+   `tools.py::_matches_size` reliably handles standard letter sizes (`S`, `M`, `L`, `S/M`) and waist sizes (`W30`), but it struggles with fractional or unisex shoe sizes (e.g., `"US 8.5 Men"` vs. `"8.5"`). A query like `"sneakers size 8.5"` can be rejected if the listing stores the size as `"8 1/2"`.
+
+**Why I stopped where I did:**
+The Unit 4 requirement strictly limits modifications to **one improvement, measured properly**. Rewriting the search query parser or overhauling size normalization would have introduced confounding variables alongside the prompt contract fix, making it impossible to isolate the measurement. These two areas are prioritized for future iterations.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════

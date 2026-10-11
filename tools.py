@@ -173,6 +173,8 @@ Rules:
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
 
+# ── Tool 3: create_fit_card ───────────────────────────────────────────────────
+
 def create_fit_card(outfit: str, new_item: dict) -> str:
     """
     Write a short caption someone would actually post about the find.
@@ -180,22 +182,30 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     if not outfit or not outfit.strip():
         return "No outfit details available to generate a fit card."
 
+    title = new_item.get("title", "thrift find")
+    price = new_item.get("price", "0.0")
+    platform = new_item.get("platform", "online thrift")
+    brand = new_item.get("brand") or "vintage"
+
     prompt = f"""
-Write a short, aesthetic social media caption (2 to 4 sentences) for someone sharing their thrift find.
+You are writing a short social post for a thrifter sharing a recent find.
 
-Thrifted Item:
-- Title: {new_item.get('title')}
-- Price: ${new_item.get('price')}
-- Platform: {new_item.get('platform')}
-- Brand: {new_item.get('brand') or 'vintage'}
+INPUT DATA:
+- Item: {title}
+- Price: ${price}
+- Platform: {platform}
+- Brand: {brand}
+- Styling Context: {outfit}
 
-Styling Suggestion:
-{outfit}
+MANDATORY RULES:
+1. Sentence 1 MUST explicitly mention the item title ('{title}'), the exact price with dollar sign ('${price}'), and the platform ('{platform}').
+2. Sentence 2-3 describe the styling vibe based on the styling context.
+3. The very last line MUST consist of exactly 3 to 4 aesthetic hashtags starting with '#' (e.g., #thriftfinds #{platform} #vintagefashion).
+4. Do NOT omit the dollar sign or numeric price under any circumstances.
 
-Requirements:
-- Sound like an authentic personal post (not a product catalog or advertisement).
-- Naturally mention the item title, its price (${new_item.get('price')}), and the platform ({new_item.get('platform')}) once each.
-- Highlight the styling aesthetic.
-- End with 2-4 aesthetic hashtags (e.g. #thriftfinds #vintage).
+Format:
+<2-3 sentence engaging post mentioning item, price, and platform>
+
+<3-4 hashtags>
 """
     return generate(prompt).strip()
