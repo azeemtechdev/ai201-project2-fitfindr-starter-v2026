@@ -194,19 +194,30 @@ Scored these dream Vintage Levi's 501 Jeans on depop for just $38.0 and I’m ne
      `python run_eval.py --label before` runs everything and writes the table
      into results/. Paste it here and fill in the verdicts. -->
 
+## Run Log (Before Improvement)
+
+- Produced by: `run_eval.py::main`
+- Loop: `agent.py::run_agent` · tools: `tools.py`
+- Tries per scenario: 5, caching off
+
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Full three-tool run returns a fit card | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Empty search stops before tool 2 | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Item in session matches item passed on | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card mentions title, price, and hashtags | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Over-budget query returns nothing over limit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
 
 ```
+**Criterion 1 & 4 (Produced by `tools.py::create_fit_card`):**
+```text
+Scored this vintage 2003 Tour Bootleg Style graphic tee on depop for just $24.0, and I'm honestly obsessed. Threw it on with my favorite baggy dark wash jeans and a worn-in black denim jacket for that effortlessly grungy, monochromatic streetwear look.
 
+#thriftfinds #depop #streetwearaesthetic #vintagefashion
 ```
 
 ---
@@ -259,12 +270,91 @@ that produced it:
 
 ```
 
+$ python app.py ask 'vintage graphic tee under $30' --trace
+[1] search_listings (via MCP)
+      in:  dict with keys: description, max_price
+      out: 10 items: Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey, Vintage Graphic Hoodie — Faded Black … +7 more
+[2] suggest_outfit
+      in:  dict with keys: item, wardrobe_count
+      out: Pair your new 2003 tour graphic tee with your **baggy dark wash jeans** and the **vintage black denim jacket**…
+[3] create_fit_card
+      in:  dict with keys: item, price
+      out: Scored this ultimate 2003 Tour Bootleg Style graphic tee on depop for just $24.0, and I'm honestly obsessed. T…
+
+  Found:    Graphic Tee — 2003 Tour Bootleg Style — $24.0 on depop
+
+  Outfit:   Pair your new 2003 tour graphic tee with your **baggy dark wash jeans** and the **vintage black denim jacket**. 
+
+The monochromatic black-on-black base of the tee and denim jacket creates a cohesive, grungy aesthetic that is effortlessly elevated by the rich indigo of the baggy jeans. Meanwhile, the relaxed silhouette of the straight-leg denim perfectly mirrors the streetwear energy of the bootleg tee, while adding a subtle contrast in texture betweenthe worn-in cotton and sturdy denim.
+
+  Fit card: Scored this ultimate 2003 Tour Bootleg Style graphic tee on depop for just $24.0, and I'm honestly obsessed. Threw it on with my favorite baggy dark wash jeans and a worn-in black denim jacket for that effortlessly grungy, monochromatic streetwear look. It’s giving total effortless vintage vibes.
+
+#thriftfinds #depop #streetwearaesthetic #vintagefashion
+
+0 model calls this session, 2 served from cache
+
 ```
 
 **Empty search**
 
 ```
+$ python app.py ask 'designer ballgown size XXS under $5'
+[1] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+[2] branch_check
+      in:  dict with keys: results_count
+      →    empty results, stopping execution before suggest_outfit
 
+  No thrift listings found matching 'designer ballgown'. Try raising your price ceiling above $5.00, trying alternative sizes or removing the size filter ('XXS'), or using broader style keywords (e.g., 'vintage', 'casual', 'jacket').
+
+0 model calls this session
+
+$ python app.py ask 'vintage graphic tee under $30' --empty-wardrobe
+(running with an empty wardrobe)
+[1] search_listings (via MCP)
+      in:  dict with keys: description, max_price
+      out: 10 items: Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey, Vintage Graphic Hoodie — Faded Black … +7 more
+[2] suggest_outfit
+      in:  dict with keys: item, wardrobe_count
+      out: Since your wardrobe is currently a blank slate, anchor this graphic tee with effortless streetwear staples lik…
+[3] create_fit_card
+      in:  dict with keys: item, price
+      out: Scored this absolute gem on depop for just $24.0, and I'm honestly obsessed. This Graphic Tee — 2003 Tour Boot…
+
+  Found:    Graphic Tee — 2003 Tour Bootleg Style — $24.0 on depop
+
+  Outfit:   Since your wardrobe is currently a blank slate, anchor this graphic tee with effortless streetwear staples like a pair of high-waisted distressed denim jeans or cargo pants in faded black, charcoal, or olive. To nail that grunge aesthetic, layer the look with a vintage oversized flannel or a beat-up leather jacket, sticking to a moody, neutral color palette. Finish the outfit off with chunky black combat boots (like Dr. Martens) or worn-in canvas sneakers to tie the whole edgy, vintage-inspired vibe together.
+
+  Fit card: Scored this absolute gem on depop for just $24.0, and I'm honestly obsessed. This Graphic Tee — 2003 Tour Bootleg Style has the best vintage wash, so I'm pairing it with faded black cargos and chunky boots to lean all the way into that moody grunge aesthetic. It’s officially the new anchor piece of my wardrobe.
+
+#thriftfinds #depop #grungeaesthetic #vintagefashion
+
+2 model calls this session, 348 prompt + 197 output tokens
+
+$ python app.py ask 'leather trench coat under $70'
+[1] search_listings (via MCP)
+      in:  dict with keys: description, max_price
+      out: 3 items: Leather Belt — Brown, Braided, Mini Shoulder Bag — Tan Leather, Platform Mary Janes — Black Patent
+[2] suggest_outfit
+      in:  dict with keys: item, wardrobe_count
+      out: Pair the brown braided leather belt with your **wide-leg khaki trousers** and the **white ribbed tank top**.  …
+[3] create_fit_card
+      in:  dict with keys: item, price
+      out: Scored this gorgeous vintage braided brown leather belt on thredUp for just $12.0, and she’s already the ancho…
+
+  Found:    Leather Belt — Brown, Braided — $12.0 on thredUp
+
+  Outfit:   Pair the brown braided leather belt with your **wide-leg khaki trousers** and the **white ribbed tank top**. 
+
+The fitted white tank balances the voluminous, earth-toned trousers while drawing the eye to the waist where the vintage brown belt adds a rich, textured focal point. This combination effortlessly bridges minimal and western aesthetics, creating a clean yet dimensional monochromatic tan-and-brown base.
+
+  Fit card: Scored this gorgeous vintage braided brown leather belt on thredUp for just $12.0, and she’s already the anchor of my current favorite outfit. I love wearing it over a crisp white tank and wide-leg khaki trousers to get that subtle western-meets-minimalist edge. It adds just the right amount of rich, textured detail to keep a neutral base feeling dimensional. 
+
+#thriftfinds #vintagestyle #thredup #neutralstyle
+
+0 model calls this session, 2 served from cache
+(.venv) 
 ```
 
 **On the MCP move:** <!-- what changed in your code, and whether anything
